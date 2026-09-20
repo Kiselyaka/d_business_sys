@@ -1,0 +1,2 @@
+"""CRM demo application package."""
+
