@@ -1,0 +1,1 @@
+"""Mini Shop business model."""

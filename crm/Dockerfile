@@ -6,5 +6,5 @@ COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
 RUN pip install --no-cache-dir .
 ENV PYTHONPATH=/app/src
-EXPOSE 8003
-CMD ["sh", "-c", "alembic upgrade head && uvicorn crm.main:app --host 0.0.0.0 --port 8003"]
+EXPOSE 8000
+CMD ["sh", "-c", "alembic upgrade head && uvicorn crm.main:app --host 0.0.0.0 --port 8000"]

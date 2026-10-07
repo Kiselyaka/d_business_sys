@@ -1,13 +1,17 @@
 from fastapi import FastAPI, Response, status
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
 
-from crm.database import create_database_engine, database_is_ready
+from crm.application.contracts import IntegrationOrderRequest, IntegrationOrderResponse
+from crm.application.services import upsert_integration_order
+from crm.database import create_database_engine, create_session_factory, database_is_ready
 from crm.settings import Settings
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, session_factory: sessionmaker[Session] | None = None) -> FastAPI:
     settings = settings or Settings()
     engine: Engine = create_database_engine(settings.database_url)
+    session_factory = session_factory or create_session_factory(engine)
     app = FastAPI(title="CRM", version="0.1.0")
 
     @app.get("/health/live", tags=["health"])
@@ -21,8 +25,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "unavailable", "database": "unavailable"}
 
+    @app.post("/api/integration/orders", response_model=IntegrationOrderResponse, status_code=status.HTTP_200_OK)
+    def receive_integration_order(request: IntegrationOrderRequest) -> IntegrationOrderResponse:
+        return upsert_integration_order(session_factory, request)
+
     return app
 
 
 app = create_app()
-

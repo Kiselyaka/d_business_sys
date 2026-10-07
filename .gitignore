@@ -7,3 +7,7 @@ pytest-cache-files-*/
 *.py[cod]
 *.egg-info/
 *.db
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
