@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -66,5 +67,26 @@ class OrderCreatedEvent(BaseModel):
 
 
 class CreateOrderResponse(BaseModel):
+    order_id: str
+    status: str
+
+
+class ReservationResultRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_id: str = Field(min_length=1)
+    reservation_result: Literal["succeeded", "failed"]
+    warehouse_event_id: str = Field(min_length=1)
+    reason_code: str | None = Field(default=None, min_length=1)
+    message: str | None = Field(default=None, min_length=1)
+
+    def model_post_init(self, __context: object) -> None:
+        if self.reservation_result == "failed" and (self.reason_code is None or self.message is None):
+            raise ValueError("failed reservation result requires reason_code and message")
+        if self.reservation_result == "succeeded" and (self.reason_code is not None or self.message is not None):
+            raise ValueError("succeeded reservation result must not include failure details")
+
+
+class ReservationResultResponse(BaseModel):
     order_id: str
     status: str

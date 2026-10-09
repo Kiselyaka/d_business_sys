@@ -5,14 +5,30 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from mini_shop.application.contracts import CreateOrderRequest, CreateOrderResponse, OrderCreatedEvent, OrderCreatedItem, OrderCreatedPayload
+from mini_shop.application.contracts import (
+    CreateOrderRequest,
+    CreateOrderResponse,
+    OrderCreatedEvent,
+    OrderCreatedItem,
+    OrderCreatedPayload,
+    ReservationResultRequest,
+    ReservationResultResponse,
+)
 from mini_shop.application.ports import IntegrationEventPublisher
-from mini_shop.domain.models import Customer, Order, OrderItem, Product
+from mini_shop.domain.models import Customer, Order, OrderItem, OrderStatus, Product, ReservationTransitionError
 
 logger = logging.getLogger(__name__)
 
 
 class ProductNotFoundError(ValueError):
+    pass
+
+
+class OrderNotFoundError(ValueError):
+    pass
+
+
+class ReservationResultConflictError(ValueError):
     pass
 
 
@@ -43,7 +59,7 @@ def create_order(
             customer=customer,
             currency="EUR",
             total_amount=sum((products_by_code[item.product_code].price * item.quantity for item in request.items), Decimal("0")),
-            status="CREATED",
+            status=OrderStatus.WAITING_FOR_RESERVATION.value,
             shipping_address=request.shipping_address.model_dump(mode="json"),
         )
         order.items = [
@@ -86,3 +102,25 @@ def create_order(
     publisher.publish(event)
     logger.info("external_event_sent", extra={"event_id": event.event_id, "order_id": order.id})
     return CreateOrderResponse(order_id=order.id, status=order.status)
+
+
+def apply_reservation_result(
+    session_factory: sessionmaker[Session], request: ReservationResultRequest
+) -> ReservationResultResponse:
+    with session_factory() as session:
+        order = session.get(Order, request.order_id)
+        if order is None:
+            raise OrderNotFoundError(f"Order not found: {request.order_id}")
+        try:
+            order.apply_reservation_result(request.reservation_result)
+        except ReservationTransitionError as error:
+            raise ReservationResultConflictError(str(error)) from error
+        session.commit()
+        session.refresh(order)
+        response = ReservationResultResponse(order_id=order.id, status=order.status)
+
+    logger.info(
+        "reservation_result_applied",
+        extra={"order_id": request.order_id, "warehouse_event_id": request.warehouse_event_id, "status": response.status},
+    )
+    return response

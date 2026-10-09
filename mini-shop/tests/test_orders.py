@@ -63,7 +63,7 @@ def test_create_order_persists_domain_data_calculates_total_and_publishes_event(
         customer = session.scalar(select(Customer).where(Customer.customer_id == "C-1001"))
         assert order is not None
         assert customer is not None
-        assert order.status == "CREATED"
+        assert order.status == "WAITING_FOR_RESERVATION"
         assert order.total_amount == Decimal("21.00")
         assert len(order.items) == 1
         assert order.items[0].name_snapshot == "Example Product"

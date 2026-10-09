@@ -2,9 +2,20 @@ from fastapi import FastAPI, HTTPException, Response, status
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from mini_shop.application.contracts import CreateOrderRequest, CreateOrderResponse
+from mini_shop.application.contracts import (
+    CreateOrderRequest,
+    CreateOrderResponse,
+    ReservationResultRequest,
+    ReservationResultResponse,
+)
 from mini_shop.application.ports import EventPublicationError, IntegrationEventPublisher
-from mini_shop.application.services import ProductNotFoundError, create_order
+from mini_shop.application.services import (
+    OrderNotFoundError,
+    ProductNotFoundError,
+    ReservationResultConflictError,
+    apply_reservation_result,
+    create_order,
+)
 from mini_shop.database import create_database_engine, create_session_factory, database_is_ready
 from mini_shop.infrastructure.http_publisher import HttpIntegrationEventPublisher
 from mini_shop.settings import Settings
@@ -42,6 +53,20 @@ def create_app(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
         except EventPublicationError as error:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+
+    @app.post(
+        "/api/integration/reservation-results",
+        response_model=ReservationResultResponse,
+        status_code=status.HTTP_200_OK,
+        tags=["integration"],
+    )
+    def post_reservation_result(request: ReservationResultRequest) -> ReservationResultResponse:
+        try:
+            return apply_reservation_result(session_factory, request)
+        except OrderNotFoundError as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+        except ReservationResultConflictError as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
     return app
 
